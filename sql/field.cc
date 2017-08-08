@@ -10348,8 +10348,10 @@ bool Column_definition::check(THD *thd)
       pack_length= (length + 7) / 8;
       break;
     }
-  case MYSQL_TYPE_DECIMAL:
-    DBUG_ASSERT(0); /* Was obsolete */
+  case MYSQL_TYPE_DECIMAL: /* Was obsolete */
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    DBUG_ASSERT(0);
   }
   /* Remember the value of length */
   char_length= length;

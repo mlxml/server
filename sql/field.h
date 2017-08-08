@@ -3207,6 +3207,12 @@ private:
   double val_real(void);
   longlong val_int(void);
   uint size_of() const { return sizeof(*this); }
+  enum_field_types binlog_type() const { return MYSQL_TYPE_VARCHAR_COMPRESSED; }
+  void sql_type(String &str) const
+  {
+    Field_varstring::sql_type(str);
+    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+  }
 
   /*
     Compressed fields can't have keys as two rows may have different
@@ -3495,6 +3501,12 @@ private:
   double val_real(void);
   longlong val_int(void);
   uint size_of() const { return sizeof(*this); }
+  enum_field_types binlog_type() const { return MYSQL_TYPE_BLOB_COMPRESSED; }
+  void sql_type(String &str) const
+  {
+    Field_blob::sql_type(str);
+    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+  }
 
   /*
     Compressed fields can't have keys as two rows may have different

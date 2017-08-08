@@ -1450,6 +1450,14 @@ public:
 };
 
 
+class Type_handler_varchar_compressed: public Type_handler_varchar
+{
+public:
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
+};
+
+
 class Type_handler_tiny_blob: public Type_handler_string_result
 {
   static const Name m_name_tinyblob;
@@ -1493,6 +1501,14 @@ public:
   virtual ~Type_handler_blob() {}
   const Name name() const { return m_name_blob; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
+};
+
+
+class Type_handler_blob_compressed: public Type_handler_blob
+{
+public:
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
