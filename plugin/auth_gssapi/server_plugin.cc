@@ -31,8 +31,6 @@
 
   GSSAPI authentication plugin, server side
 */
-#include <my_global.h>
-#include <my_sys.h>
 #include <mysqld_error.h>
 #include <mysql/plugin_auth.h>
 #include "server_plugin.h"
@@ -133,7 +131,7 @@ static const char* mech_names[] = {
   NULL
 };
 static TYPELIB mech_name_typelib = {
-  array_elements(mech_names) - 1,
+  3,
   "mech_name_typelib",
   mech_names,
   NULL

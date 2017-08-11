@@ -14,13 +14,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include <my_global.h>
-#include <my_sys.h>
 #include <mysqld_error.h>
 #include <mysql/plugin_password_validation.h>
 #include <ctype.h>
 #include <string.h>
-#include <my_attribute.h>
 
 static unsigned min_length, min_digits, min_letters, min_others;
 
@@ -64,8 +61,7 @@ static void fix_min_length(MYSQL_THD thd __attribute__((unused)),
   {
     my_printf_error(ER_TRUNCATED_WRONG_VALUE,
                     "Adjusted the value of simple_password_check_minimal_length "
-                    "from %u to %u", ME_JUST_WARNING,
-                    min_length, new_min_length);
+                    "from %u to %u", ME_WARNING, min_length, new_min_length);
     min_length= new_min_length;
   }
 }
