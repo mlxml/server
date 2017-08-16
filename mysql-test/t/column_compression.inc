@@ -93,6 +93,33 @@ SELECT * FROM t1 ORDER BY a;
 --echo # Coverage for val_real() and val_int()
 SELECT a+1 FROM t1 ORDER BY 1;
 SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
-#--exec hd /home/svoj/devel/maria/debug/mysql-test/var/mysqld.1/data/test/t1.MYD
 
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13540 - Server crashes in copy or Assertion `0' failed in virtual
+--echo #              Field* Field_varstring_compressed::new_key_field
+--echo #
+eval CREATE TABLE t1 (c1 $typec) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+
+eval CREATE TABLE t2 (c2 $typec) ENGINE=MyISAM; # Compression is optional
+INSERT IGNORE INTO t2 VALUES ('qux'),('abc');  # Optional
+
+SELECT * FROM t1 WHERE c1 NOT IN ( SELECT c2 FROM t2 WHERE c2 = c1 );
+
+# Cleanup
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # MDEV-13541 - Server crashes in next_breadth_first_tab or Assertion `0'
+--echo #              failed in Field_varstring_compressed::new_key_field
+--echo #
+eval CREATE TABLE t1 (c $typec) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+SELECT DISTINCT c FROM t1;
+
+# Cleanup
 DROP TABLE t1;

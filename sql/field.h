@@ -3222,10 +3222,6 @@ private:
   int key_cmp(const uchar *str, uint length)
   { DBUG_ASSERT(0); return 0; }
   using Field_varstring::key_cmp;
-  Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
-                       uchar *new_ptr, uint32 length,
-                       uchar *new_null_ptr, uint new_null_bit)
-  { DBUG_ASSERT(0); return 0; }
 };
 
 
