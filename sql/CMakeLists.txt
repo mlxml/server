@@ -230,6 +230,7 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
     IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
         (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
+      FILE(REMOVE mysqld_lib.lib mysqld_lib.exp)
       SET(ENV{VS_UNICODE_OUTPUT})
       EXECUTE_PROCESS (
         COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
@@ -244,17 +245,25 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
     ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
     make_mysqld_lib.cmake)
 
+  IF(CMAKE_VERSION VERSION_GREATER "3.2.0")
+    SET(MYSQLD_LIB_BYPRODUCTS  BYPRODUCTS ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP})
+  ENDIF()
+
   ADD_CUSTOM_COMMAND(
-    OUTPUT ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP}
-    COMMAND cscript ARGS //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
-    ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp
+    ${MYSQLD_LIB_BYPRODUCTS}
+    COMMENT "Generating mysqld_lib.def, mysqld_lib.lib, mysqld_lib.exp"
+    COMMAND cscript //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
+            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
     COMMAND ${CMAKE_COMMAND} -E copy_if_different mysqld_lib.def.tmp mysqld_lib.def
+    COMMAND ${CMAKE_COMMAND} -E remove mysqld_lib.def.tmp
     COMMAND ${CMAKE_COMMAND} -P make_mysqld_lib.cmake
+    COMMAND ${CMAKE_COMMAND} -E touch mysqld_lib.stamp
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${MYSQLD_CORELIBS}
   )
 
-  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${MYSQLD_LIB})
+  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp)
   ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
   SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
 ENDIF()
