@@ -1,9 +1,16 @@
 module mariadb 1.0;
 
 require {
+        type mysqld_t;
         type mysqld_safe_t;
         class capability { setuid setgid };
+        class file { open };
+# Galera Requirements
+        type initrc_tmp_t;
 }
 
 #============= mysqld_safe_t ==============
 allow mysqld_safe_t self:capability { setuid setgid };
+
+#================ Galera ==================
+allow mysqld_t initrc_tmp_t:file{open};
