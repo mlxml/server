@@ -48,14 +48,11 @@ ${WSREP_INCLUDES}
 SET(GEN_SOURCES
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h 
-)
-SET(GEN_DIGEST_SOURCES
-  ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h 
+${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
 )
 
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
-                            ${GEN_DIGEST_SOURCES}
                             PROPERTIES GENERATED 1)
 
 # Gen_lex_token
@@ -153,7 +150,6 @@ SET (SQL_SOURCE
                table_cache.cc encryption.cc temporary_tables.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
-               ${GEN_DIGEST_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )
   
@@ -174,7 +170,6 @@ RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 ADD_DEPENDENCIES(sql GenServerSource)
-ADD_DEPENDENCIES(sql GenDigestServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre
