@@ -1,0 +1,89 @@
+create table t1 (a int not null primary key auto_increment,
+b bigint,
+c varchar(200),
+d int,
+key b (b),
+key d (d)) engine=INNODB;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into t1 values(NULL, RAND(), substring(MD5(RAND()), -84), RAND());
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+set autocommit=0;
+call innodb_insert_proc(15000);
+commit;
+set autocommit=1;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connection default;
+set GLOBAL innodb_page_cleaners = 4;
+connection con1;
+update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+connection con2;
+update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+connection con3;
+update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+connection default;
+set GLOBAL innodb_page_cleaners = 2;
+set GLOBAL innodb_page_cleaners = 4;
+set GLOBAL innodb_page_cleaners = 1;
+connection con1;
+connection con2;
+connection con3;
+connection default;
+set GLOBAL innodb_page_cleaners = 4;
+connection con1;
+update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+connection con2;
+update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+connection con3;
+update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+connection default;
+set GLOBAL innodb_page_cleaners = 2;
+Restart after page cleaner decrease
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+set GLOBAL innodb_page_cleaners = 1;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connection con1;
+update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+connection con2;
+update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+connection con3;
+update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+connection default;
+set GLOBAL innodb_page_cleaners = 4;
+Restart after page cleaner increase
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+set GLOBAL innodb_page_cleaners = 4;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connection con1;
+update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+connection con2;
+update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+connection con3;
+update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+connection default;
+set GLOBAL innodb_page_cleaners = 1;
+Restart after page cleaner decrease
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+DROP TABLE t1;
+DROP PROCEDURE innodb_insert_proc;

@@ -1,0 +1,152 @@
+--source include/have_innodb.inc
+# Embedded server does not support restarting.
+--source include/not_embedded.inc
+
+let $orig_page_cleaners=`SELECT @@innodb_page_cleaners`;
+
+create table t1 (a int not null primary key auto_increment,
+b bigint,
+c varchar(200),
+d int,
+key b (b),
+key d (d)) engine=INNODB;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into t1 values(NULL, RAND(), substring(MD5(RAND()), -84), RAND());
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(15000);
+commit;
+set autocommit=1;
+
+#
+# We want 4 connections: (1) - (3) to create dirty pages
+# and default to modify the number of page cleaner threads
+#
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connect (con3,localhost,root,,);
+
+connection default;
+set GLOBAL innodb_page_cleaners = 4;
+
+connection con1;
+send update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+
+connection con2;
+send update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+
+connection con3;
+send update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+
+connection default;
+set GLOBAL innodb_page_cleaners = 2;
+set GLOBAL innodb_page_cleaners = 4;
+set GLOBAL innodb_page_cleaners = 1;
+
+connection con1;
+reap;
+
+connection con2;
+reap;
+
+connection con3;
+reap;
+
+connection default;
+set GLOBAL innodb_page_cleaners = 4;
+
+#
+# Shutdown so that number of page cleaners are decreased
+#
+
+connection con1;
+send update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+
+connection con2;
+send update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+
+connection con3;
+send update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+
+connection default;
+set GLOBAL innodb_page_cleaners = 2;
+
+--echo Restart after page cleaner decrease
+--source include/restart_mysqld.inc
+
+#
+# Shutdown so that number of page cleaners are increased
+#
+
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+set GLOBAL innodb_page_cleaners = 1;
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connect (con3,localhost,root,,);
+
+connection con1;
+send update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+
+connection con2;
+send update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+
+connection con3;
+send update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+
+connection default;
+set GLOBAL innodb_page_cleaners = 4;
+--echo Restart after page cleaner increase
+--source include/restart_mysqld.inc
+
+#
+# Shutdown with only page cleaner coordinator
+#
+
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+set GLOBAL innodb_page_cleaners = 4;
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connect (con3,localhost,root,,);
+
+connection con1;
+send update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+
+connection con2;
+send update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+
+connection con3;
+send update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+
+connection default;
+set GLOBAL innodb_page_cleaners = 1;
+
+--echo Restart after page cleaner decrease
+--source include/restart_mysqld.inc
+
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+
+DROP TABLE t1;
+DROP PROCEDURE innodb_insert_proc;
+
+

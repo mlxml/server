@@ -20157,10 +20157,23 @@ static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to InnoDB log files.", NULL, NULL, NULL);
 
+static
+void
+innodb_page_cleaners_threads_update(
+/*=============================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save);	/*!< in: immediate result
+						from check function */
+
 static MYSQL_SYSVAR_ULONG(page_cleaners, srv_n_page_cleaners,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "Page cleaner threads can be from 1 to 64. Default is 4.",
-  NULL, NULL, 4, 1, 64, 0);
+  NULL,
+  innodb_page_cleaners_threads_update, 4, 1, 64, 0);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -22499,4 +22512,21 @@ ib_push_frm_error(
 		ut_error;
 		break;
 	}
+}
+
+/******************************************************************
+Update the system variable innodb_page_cleaners */
+static
+void
+innodb_page_cleaners_threads_update(
+/*=============================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	buf_flush_set_page_cleaner_thread_cnt(*static_cast<const ulong*>(save));
 }

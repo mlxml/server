@@ -1875,9 +1875,8 @@ innobase_start_or_create_for_mysql()
 		os_thread_create(buf_flush_page_cleaner_coordinator,
 				 NULL, NULL);
 
-		for (i = 1; i < srv_n_page_cleaners; ++i) {
-			os_thread_create(buf_flush_page_cleaner_worker,
-					 NULL, NULL);
+		if (srv_n_page_cleaners > 1) {
+			buf_flush_set_page_cleaner_thread_cnt(srv_n_page_cleaners);
 		}
 
 #ifdef UNIV_LINUX
