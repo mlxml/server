@@ -55,14 +55,6 @@ ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
                             PROPERTIES GENERATED 1)
 
-# Gen_lex_token
-# Make sure sql_yacc.h is generated before compiling gen_lex_token
-
-IF(NOT CMAKE_GENERATOR MATCHES "Visual Studio")
-  SET(DEPENDS_gen_lex_token DEPENDS gen_lex_token)
-  SET(DEPENDS_gen_lex_hash DEPENDS gen_lex_hash)
-ENDIF()
-
 
 IF(NOT CMAKE_CROSSCOMPILING)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
@@ -72,7 +64,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
   COMMAND gen_lex_token > lex_token.h
-  ${DEPENDS_gen_lex_token}
+  DEPENDS gen_lex_token
 )
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
@@ -208,7 +200,7 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.def)
   SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.exp)
   SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.lib)
-  SET(MYSQLD_CORELIBS sql mysys mysys_ssl dbug strings)
+  SET(MYSQLD_CORELIBS sql mysys dbug strings)
   FOREACH (CORELIB ${MYSQLD_CORELIBS})
     GET_TARGET_PROPERTY(LOC ${CORELIB} LOCATION)
     FILE(TO_NATIVE_PATH ${LOC} LOC)
@@ -316,10 +308,6 @@ IF(WITH_MYSQLD_LDFLAGS)
   SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS 
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
-INSTALL_DEBUG_TARGET(mysqld 
-  DESTINATION ${INSTALL_SBINDIR} 
-  PDB_DESTINATION ${INSTALL_SBINDIR}/debug
-  RENAME mysqld-debug)
 
 INCLUDE(${CMAKE_SOURCE_DIR}/cmake/bison.cmake)
 
@@ -353,7 +341,7 @@ ENDIF()
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
   COMMAND gen_lex_hash > lex_hash.h
-  ${DEPENDS_gen_lex_hash}
+  DEPENDS gen_lex_hash
 )
 
 MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
@@ -363,11 +351,6 @@ TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 ADD_CUSTOM_TARGET( 
         GenServerSource
         DEPENDS ${GEN_SOURCES}
-)
-
-ADD_CUSTOM_TARGET( 
-        GenDigestServerSource
-        DEPENDS ${GEN_DIGEST_SOURCES}
 )
 
 #Need this only for embedded

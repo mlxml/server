@@ -32,21 +32,10 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   ENDIF()
   SET(targets ${ARG_UNPARSED_ARGUMENTS})
   FOREACH(target ${targets})
-    GET_TARGET_PROPERTY(type ${target} TYPE)
-    GET_TARGET_PROPERTY(location ${target} LOCATION)
-    STRING(REPLACE ".exe" ".pdb" pdb_location ${location})
-    STRING(REPLACE ".dll" ".pdb" pdb_location ${pdb_location})
-    STRING(REPLACE ".lib" ".pdb" pdb_location ${pdb_location})
-    IF(CMAKE_GENERATOR MATCHES "Visual Studio")
-      STRING(REPLACE
-        "${CMAKE_CFG_INTDIR}" "\${CMAKE_INSTALL_CONFIG_NAME}"
-        pdb_location ${pdb_location})
-    ENDIF()
-	
     set(comp "")
-   
-    IF(target MATCHES "mysqld" OR type MATCHES "MODULE")
-      #MESSAGE("PDB: ${targets}")
+    GET_TARGET_PROPERTY(target_type ${target} TYPE)
+    IF(target MATCHES "mysqld" OR target_type MATCHES "MODULE")
+      #MESSAGE("PDB: ${target}")
       SET(comp Server)
     ENDIF()
  
@@ -61,11 +50,9 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
     IF(NOT comp)
       SET(comp Debuginfo_archive_only) # not in MSI
     ENDIF()
-	IF(type MATCHES "STATIC")
-	  # PDB for static libraries might be unsupported http://public.kitware.com/Bug/view.php?id=14600
-	  SET(opt OPTIONAL)
-	ENDIF()
-    INSTALL(FILES ${pdb_location} DESTINATION ${ARG_INSTALL_LOCATION} COMPONENT ${comp} ${opt})
+    IF(NOT target_type MATCHES "STATIC")
+      INSTALL(FILES $<TARGET_PDB_FILE:${target}> DESTINATION ${ARG_INSTALL_LOCATION} COMPONENT ${comp})
+    ENDIF()
   ENDFOREACH()
   ENDIF()
 ENDFUNCTION()
@@ -160,38 +147,6 @@ FUNCTION(INSTALL_DOCUMENTATION)
 ENDFUNCTION()
 
 
-# Install symbolic link to CMake target. 
-# the link is created in the same directory as target
-# and extension will be the same as for target file.
-MACRO(INSTALL_SYMLINK linkname target destination component)
-IF(UNIX)
-  GET_TARGET_PROPERTY(location ${target} LOCATION)
-  GET_FILENAME_COMPONENT(path ${location} PATH)
-  GET_FILENAME_COMPONENT(name ${location} NAME)
-  SET(output ${path}/${linkname})
-  ADD_CUSTOM_COMMAND(
-    OUTPUT ${output}
-    COMMAND ${CMAKE_COMMAND} ARGS -E remove -f ${output}
-    COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink 
-      ${name} 
-      ${linkname}
-    WORKING_DIRECTORY ${path}
-    DEPENDS ${target}
-    )
-  
-  ADD_CUSTOM_TARGET(symlink_${linkname}
-    ALL
-    DEPENDS ${output})
-  SET_TARGET_PROPERTIES(symlink_${linkname} PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-  IF(CMAKE_GENERATOR MATCHES "Xcode")
-    # For Xcode, replace project config with install config
-    STRING(REPLACE "${CMAKE_CFG_INTDIR}" 
-      "\${CMAKE_INSTALL_CONFIG_NAME}" output ${output})
-  ENDIF()
-  INSTALL(FILES ${output} DESTINATION ${destination} COMPONENT ${component})
-ENDIF()
-ENDMACRO()
-
 IF(WIN32)
   OPTION(SIGNCODE "Sign executables and dlls with digital certificate" OFF)
   MARK_AS_ADVANCED(SIGNCODE)
@@ -212,36 +167,22 @@ IF(WIN32)
   ENDIF()
 ENDIF()
 
-MACRO(SIGN_TARGET)
-  CMAKE_PARSE_ARGUMENTS(ARG "" "COMPONENT" "" ${ARGN})
- SET(target ${ARG_UNPARSED_ARGUMENTS})
- IF(ARG_COMPONENT)
-  SET(comp COMPONENT ${ARG_COMPONENT})
- ELSE()
-  SET(comp)
- ENDIF()
- GET_TARGET_PROPERTY(target_type ${target} TYPE)
- IF(target_type AND NOT target_type MATCHES "STATIC")
-   GET_TARGET_PROPERTY(target_location ${target}  LOCATION)
-   IF(CMAKE_GENERATOR MATCHES "Visual Studio")
-   STRING(REPLACE "${CMAKE_CFG_INTDIR}" "\${CMAKE_INSTALL_CONFIG_NAME}" 
-     target_location ${target_location})
-   ENDIF()
-   INSTALL(CODE
-   "EXECUTE_PROCESS(COMMAND 
-   \"${SIGNTOOL_EXECUTABLE}\" verify /pa /q \"${target_location}\"
-   RESULT_VARIABLE ERR)
-   IF(NOT \${ERR} EQUAL 0)
-     EXECUTE_PROCESS(COMMAND 
-     \"${SIGNTOOL_EXECUTABLE}\" sign ${SIGNTOOL_PARAMETERS} \"${target_location}\"
-     RESULT_VARIABLE ERR)
-   ENDIF()
-   IF(NOT \${ERR} EQUAL 0)
-    MESSAGE(FATAL_ERROR \"Error signing  '${target_location}'\")
-   ENDIF()
-   " ${comp})
- ENDIF()
-ENDMACRO()
+
+FUNCTION(SIGN_TARGET target)
+  IF(NOT SIGNCODE)
+    RETURN()
+  ENDIF()
+ 
+  GET_TARGET_PROPERTY(target_type ${target} TYPE)
+  
+  IF((NOT target_type) OR (target_type MATCHES "STATIC"))
+    RETURN()
+  ENDIF()
+  # Mark executable for signing. the actual signing happens in preinstall step
+  ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E touch "$<TARGET_FILE:${target}>.signme"
+  )
+ENDFUNCTION()
 
 
 # Installs targets, also installs pdbs on Windows.
@@ -271,112 +212,18 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
 
   FOREACH(target ${TARGETS})
     # If signing is required, sign executables before installing
-    IF(SIGNCODE)
-      SIGN_TARGET(${target} ${COMP})
-    ENDIF()
+    SIGN_TARGET(${target} ${COMP})
+
     # Install man pages on Unix
     IF(UNIX)
-      GET_TARGET_PROPERTY(target_location ${target} LOCATION)
-      INSTALL_MANPAGE(${target_location})
+      INSTALL_MANPAGE(${target})
     ENDIF()
   ENDFOREACH()
 
   INSTALL(TARGETS ${TARGETS} DESTINATION ${ARG_DESTINATION} ${COMP})
   INSTALL_DEBUG_SYMBOLS(${TARGETS} ${COMP} INSTALL_LOCATION ${ARG_DESTINATION})
-
 ENDFUNCTION()
 
-# Optionally install mysqld/client/embedded from debug build run. outside of the current build dir 
-# (unless multi-config generator is used like Visual Studio or Xcode). 
-# For Makefile generators we default Debug build directory to ${buildroot}/../debug.
-GET_FILENAME_COMPONENT(BINARY_PARENTDIR ${CMAKE_BINARY_DIR} PATH)
-SET(DEBUGBUILDDIR "${BINARY_PARENTDIR}/debug" CACHE INTERNAL "Directory of debug build")
-
-
-FUNCTION(INSTALL_DEBUG_TARGET target)
-  CMAKE_PARSE_ARGUMENTS(ARG
-  ""
-  "DESTINATION;RENAME;PDB_DESTINATION;COMPONENT"
-  ""
-  ${ARGN}
-  )
-  GET_TARGET_PROPERTY(target_type ${target} TYPE)
-  IF(ARG_RENAME)
-    SET(RENAME_PARAM RENAME ${ARG_RENAME}${CMAKE_${target_type}_SUFFIX})
-  ELSE()
-    SET(RENAME_PARAM)
-  ENDIF()
-  IF(NOT ARG_DESTINATION)
-    MESSAGE(FATAL_ERROR "Need DESTINATION parameter for INSTALL_DEBUG_TARGET")
-  ENDIF()
-  GET_TARGET_PROPERTY(target_location ${target} LOCATION)
-  IF(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
-   STRING(REPLACE "${CMAKE_BINARY_DIR}" "${DEBUGBUILDDIR}"  debug_target_location "${target_location}")
-  ELSE()
-   STRING(REPLACE "${CMAKE_CFG_INTDIR}" "Debug"  debug_target_location "${target_location}" )
-  ENDIF()
-  IF(NOT ARG_COMPONENT)
-    SET(ARG_COMPONENT DebugBinaries)
-  ENDIF()
-  
-  # Define permissions
-  # For executable files
-  SET(PERMISSIONS_EXECUTABLE
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE OWNER_EXECUTE
-      GROUP_READ GROUP_EXECUTE
-      WORLD_READ WORLD_EXECUTE)
-
-  # Permissions for shared library (honors CMAKE_INSTALL_NO_EXE which is 
-  # typically set on Debian)
-  IF(CMAKE_INSTALL_SO_NO_EXE)
-    SET(PERMISSIONS_SHARED_LIBRARY
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE 
-      GROUP_READ
-      WORLD_READ)
-  ELSE()
-    SET(PERMISSIONS_SHARED_LIBRARY ${PERMISSIONS_EXECUTABLE})
-  ENDIF()
-
-  # Shared modules get the same permissions as shared libraries
-  SET(PERMISSIONS_MODULE_LIBRARY ${PERMISSIONS_SHARED_LIBRARY})
-
-  #  Define permissions for static library
-  SET(PERMISSIONS_STATIC_LIBRARY
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE 
-      GROUP_READ
-      WORLD_READ)
-
-  INSTALL(FILES ${debug_target_location}
-    DESTINATION ${ARG_DESTINATION}
-    ${RENAME_PARAM}
-    ${PERMISSIONS_${target_type}}
-    CONFIGURATIONS Release RelWithDebInfo
-    COMPONENT ${ARG_COMPONENT}
-    OPTIONAL)
-
-  IF(MSVC)
-    GET_FILENAME_COMPONENT(ext ${debug_target_location} EXT)
-    STRING(REPLACE "${ext}" ".pdb"  debug_pdb_target_location "${debug_target_location}" )
-    IF (RENAME_PARAM)
-      IF(NOT ARG_PDB_DESTINATION)
-        STRING(REPLACE "${ext}" ".pdb"  "${ARG_RENAME}" pdb_rename)
-        SET(PDB_RENAME_PARAM RENAME "${pdb_rename}")
-      ENDIF()
-    ENDIF()
-    IF(NOT ARG_PDB_DESTINATION)
-      SET(ARG_PDB_DESTINATION "${ARG_DESTINATION}")
-    ENDIF()
-    INSTALL(FILES ${debug_pdb_target_location}
-      DESTINATION ${ARG_PDB_DESTINATION}
-      ${PDB_RENAME_PARAM}
-      CONFIGURATIONS Release RelWithDebInfo
-      COMPONENT ${ARG_COMPONENT}
-      OPTIONAL)
-  ENDIF()
-ENDFUNCTION()
 
 
 FUNCTION(INSTALL_MYSQL_TEST from to)
